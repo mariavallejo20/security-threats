@@ -1,0 +1,36 @@
+name: Escanear código con Snyk y Archivar si es Seguro
+on: push
+jobs:
+  security:
+    runs-on: ubuntu-latest
+    steps:
+      # Paso 1: Descargar el código del repositorio
+      - uses: actions/checkout@master
+
+      # Paso 2: Ejecutar Snyk para buscar vulnerabilidades
+      - name: Ejecutar Snyk para verificar vulnerabilidades
+        uses: snyk/actions/node@master
+        continue-on-error: true # Para asegurarse de que se llame a la carga de SARIF incluso si hay errores
+        env:
+          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+        with:
+          command: test
+          args: --sarif-file-output=snyk.sarif --all-projects
+
+      # Paso 3: Verificar resultados de Snyk y archivar el código si no hay vulnerabilidades
+      - name: Verificar resultados de Snyk y archivar código si es seguro
+        run: |
+          if grep -q '"vulnerabilities":\s*0' snyk.sarif; then
+            echo "No se encontraron vulnerabilidades. Archivando código..."
+            mkdir -p security-threats-archive
+            cp -r . security-threats-archive
+          else
+            echo "Se encontraron vulnerabilidades. El código no será archivado."
+          fi
+
+      # Paso 4: Crear archivo ZIP del código archivado si es seguro
+      - name: Crear archivo ZIP
+        uses: ihiroky/archive-action@v1
+        with:
+          root_dir: security-threats-archive
+          file_path: security-threats.zip
